@@ -1,0 +1,238 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Day Left</title>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    html, body { height: 100%; }
+    body {
+      background: #0d0d0d;
+      color: #f0f0f0;
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      flex-direction: column;
+      gap: 1.5rem;
+      padding: 2rem;
+      transition: background 0.6s;
+    }
+    body.overtime { background: #1a0a0a; }
+    .timer {
+      font-size: clamp(3rem, 12vw, 8rem);
+      font-weight: 200;
+      letter-spacing: 0.02em;
+      font-variant-numeric: tabular-nums;
+      color: #e0e0e0;
+      transition: color 0.6s;
+    }
+    body.overtime .timer { color: #cc4444; }
+    .target-row {
+      display: flex;
+      align-items: center;
+      gap: 0.5rem;
+      font-size: 0.85rem;
+      color: #555;
+      text-transform: uppercase;
+      letter-spacing: 0.3em;
+      cursor: pointer;
+      user-select: none;
+      transition: color 0.3s;
+    }
+    .target-row:hover { color: #888; }
+    .target-row input {
+      background: none;
+      border: none;
+      border-bottom: 1px solid #333;
+      color: #aaa;
+      font-size: 0.85rem;
+      font-family: inherit;
+      letter-spacing: 0.15em;
+      width: 65px;
+      text-align: center;
+      outline: none;
+      padding: 2px 0;
+      transition: border-color 0.3s, color 0.3s;
+    }
+    .target-row input:focus { border-color: #888; color: #e0e0e0; }
+    .target-row .sep { color: #333; letter-spacing: 0; }
+    .done {
+      color: #3a3;
+      font-size: 0.85rem;
+      letter-spacing: 0.3em;
+      text-transform: uppercase;
+    }
+    .meter {
+      width: min(320px, 70vw);
+      height: 1px;
+      background: #222;
+    }
+    .meter-fill {
+      height: 100%;
+      background: #e0e0e0;
+      transition: width 1s linear;
+    }
+    body.overtime .meter-fill { background: #cc4444; }
+    footer {
+      position: fixed;
+      bottom: 2rem;
+      font-size: 0.75rem;
+      color: #333;
+      letter-spacing: 0.1em;
+    }
+    /* Reset button */
+    .reset {
+      margin-top: 1.5rem;
+      font-size: 0.7rem;
+      color: #333;
+      letter-spacing: 0.2em;
+      text-transform: uppercase;
+      cursor: pointer;
+      background: none;
+      border: none;
+      font-family: inherit;
+      transition: color 0.3s;
+    }
+    .reset:hover { color: #666; }
+  </style>
+</head>
+<body>
+  <div class="target-row" id="targetRow" title="Click to edit target time">
+    <span>UNTIL</span>
+    <input type="text" id="hourInput" maxlength="2" value="23">
+    <span class="sep">:</span>
+    <input type="text" id="minInput" maxlength="2" value="59">
+    <span id="ampm">PM</span>
+  </div>
+  <div class="timer" id="timer">--:--:--</div>
+  <div class="done" id="done" style="display:none">Done</div>
+  <div class="meter">
+    <div class="meter-fill" id="meter"></div>
+  </div>
+  <button class="reset" id="reset">Reset to 11:59 PM</button>
+  <footer id="footer">your timezone</footer>
+
+  <script>
+    const timer = document.getElementById('timer');
+    const meter = document.getElementById('meter');
+    const done = document.getElementById('done');
+    const body = document.body;
+    const hourInput = document.getElementById('hourInput');
+    const minInput = document.getElementById('minInput');
+    const ampm = document.getElementById('ampm');
+    const reset = document.getElementById('reset');
+
+    let targetH = 23;
+    let targetM = 59;
+
+    function pad(n) { return String(n).padStart(2, '0'); }
+
+    function save() {
+      try { localStorage.setItem('dayleft-target', JSON.stringify([targetH, targetM])); }
+      catch(e) {}
+    }
+
+    function load() {
+      try {
+        const raw = localStorage.getItem('dayleft-target');
+        if (raw) { const [h, m] = JSON.parse(raw); targetH = h; targetM = m; }
+      } catch(e) {}
+      updateInputs();
+    }
+
+    function updateInputs() {
+      if (targetH === 0) {
+        hourInput.value = '12'; ampm.textContent = 'AM';
+      } else if (targetH < 12) {
+        hourInput.value = targetH; ampm.textContent = 'AM';
+      } else if (targetH === 12) {
+        hourInput.value = '12'; ampm.textContent = 'PM';
+      } else {
+        hourInput.value = targetH - 12; ampm.textContent = 'PM';
+      }
+      minInput.value = pad(targetM);
+    }
+
+    function parseInputs() {
+      let h = parseInt(hourInput.value, 10);
+      let m = parseInt(minInput.value, 10);
+      if (isNaN(h) || h < 1 || h > 12) return false;
+      if (isNaN(m) || m < 0 || m > 59) return false;
+      if (ampm.textContent === 'PM' && h !== 12) h += 12;
+      if (ampm.textContent === 'AM' && h === 12) h = 0;
+      targetH = h; targetM = m;
+      save();
+      updateInputs();
+      tick();
+      return true;
+    }
+
+    function toggleAmPm() {
+      if (ampm.textContent === 'PM') ampm.textContent = 'AM';
+      else ampm.textContent = 'PM';
+      parseInputs();
+    }
+
+    hourInput.addEventListener('blur', parseInputs);
+    minInput.addEventListener('blur', parseInputs);
+    hourInput.addEventListener('keydown', e => { if (e.key === 'Enter') parseInputs(); });
+    minInput.addEventListener('keydown', e => { if (e.key === 'Enter') parseInputs(); });
+
+    hourInput.addEventListener('focus', () => hourInput.select());
+    minInput.addEventListener('focus', () => minInput.select());
+
+    ampm.addEventListener('click', e => { e.stopPropagation(); toggleAmPm(); });
+
+    reset.addEventListener('click', () => {
+      targetH = 23; targetM = 59;
+      save();
+      updateInputs();
+      tick();
+    });
+
+    function tick() {
+      const now = new Date();
+      const end = new Date(now);
+      end.setHours(targetH, targetM, 0, 0);
+
+      if (now >= end) {
+        // past target — show how long since
+        const diff = now - end;
+        const h = Math.floor(diff / 3600000);
+        const m = Math.floor((diff % 3600000) / 60000);
+        const s = Math.floor((diff % 60000) / 1000);
+        timer.textContent = `+${pad(h)}:${pad(m)}:${pad(s)}`;
+        meter.style.width = '100%';
+        body.classList.add('overtime');
+        done.style.display = 'block';
+        return;
+      }
+
+      body.classList.remove('overtime');
+      done.style.display = 'none';
+
+      const start = new Date(now);
+      start.setHours(0, 0, 0, 0);
+      // if target is before current time (e.g. mid-afternoon), use midnight as start
+      // but if target is past midnight (e.g. 11:59 PM), use midnight as start
+      const totalDayMs = 24 * 60 * 60 * 1000;
+      const remaining = end - now;
+      const elapsed = (targetH * 3600000 + targetM * 60000) - remaining;
+      const pct = 100 - ((remaining / (targetH * 3600000 + targetM * 60000)) * 100);
+
+      const h = Math.floor(remaining / 3600000);
+      const m = Math.floor((remaining % 3600000) / 60000);
+      const s = Math.floor((remaining % 60000) / 1000);
+
+      timer.textContent = `${pad(h)}:${pad(m)}:${pad(s)}`;
+      meter.style.width = `${Math.min(100, Math.max(0, pct)).toFixed(2)}%`;
+    }
+
+    load();
+    tick();
+    setInterval(tick, 1000);
+  </script>
+</body>
+</html>

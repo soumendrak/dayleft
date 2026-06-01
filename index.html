@@ -65,6 +65,7 @@
       letter-spacing: 0.15em;
       text-transform: uppercase;
       user-select: none;
+      position: relative;
     }
     .date-row .arrow {
       cursor: pointer;
@@ -77,6 +78,32 @@
     .date-label {
       min-width: 120px;
       text-align: center;
+      cursor: pointer;
+      transition: color 0.3s;
+    }
+    .date-label:hover { color: #888; }
+    .date-picker {
+      position: absolute;
+      top: 100%;
+      left: 50%;
+      transform: translateX(-50%);
+      margin-top: 4px;
+      background: #1a1a1a;
+      border: 1px solid #333;
+      color: #aaa;
+      font-family: inherit;
+      font-size: 0.8rem;
+      padding: 6px 8px;
+      border-radius: 4px;
+      outline: none;
+      cursor: pointer;
+      display: none;
+      color-scheme: dark;
+    }
+    .date-picker:focus,
+    .date-picker.open { display: block; }
+    .date-picker::-webkit-calendar-picker-indicator {
+      filter: invert(0.5); cursor: pointer;
     }
     .done {
       color: #3a3;
@@ -128,6 +155,7 @@
   <div class="date-row">
     <span class="arrow" id="prevDay">◂</span>
     <span class="date-label" id="dateLabel">Today</span>
+    <input type="date" class="date-picker" id="datePicker">
     <span class="arrow" id="nextDay">▸</span>
   </div>
   <div class="timer" id="timer">--:--:--</div>
@@ -147,6 +175,7 @@
     const minInput = document.getElementById('minInput');
     const ampm = document.getElementById('ampm');
     const dateLabel = document.getElementById('dateLabel');
+    const datePicker = document.getElementById('datePicker');
     const reset = document.getElementById('reset');
 
     let targetH = 23;
@@ -209,8 +238,25 @@
       minInput.value = pad(targetM);
     }
 
+    function toDateStr(d) {
+      return d.getFullYear() + '-' + pad(d.getMonth()+1) + '-' + pad(d.getDate());
+    }
+
     function updateDateLabel() {
-      dateLabel.textContent = formatDate(getTargetDate());
+      const d = getTargetDate();
+      dateLabel.textContent = formatDate(d);
+      datePicker.value = toDateStr(d);
+    }
+
+    function pickDateFromPicker() {
+      if (!datePicker.value) return;
+      const picked = new Date(datePicker.value + 'T00:00:00');
+      const now = new Date();
+      const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+      dayOffset = Math.round((picked - today) / 86400000);
+      save();
+      updateDateLabel();
+      tick();
     }
 
     function parseInputs() {
@@ -261,9 +307,13 @@
     ampm.addEventListener('click', e => { e.stopPropagation(); toggleAmPm(); });
     document.getElementById('prevDay').addEventListener('click', () => shiftDay(-1));
     document.getElementById('nextDay').addEventListener('click', () => shiftDay(1));
+    dateLabel.addEventListener('click', () => { datePicker.classList.add('open'); datePicker.showPicker(); });
+    datePicker.addEventListener('change', pickDateFromPicker);
+    datePicker.addEventListener('blur', () => datePicker.classList.remove('open'));
 
     reset.addEventListener('click', () => {
       targetH = 23; targetM = 59; dayOffset = 0;
+      datePicker.value = '';
       save();
       updateInputs();
       updateDateLabel();
